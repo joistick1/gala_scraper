@@ -101,11 +101,32 @@ def requests_retry_session(
 	session.mount('https://', adapter)
 	return session
 
-def resolve_text(tag, tag_name, text):
+def resolve_media(media):
+	res = []
+	for item in media:
+		parsed = re.sub(r'[\n\s]{2,}', '', item.get_text().encode("utf-8"))
+		res.append(parsed)
+
+	return ",".join(res)
+
+def resolve_users(usershtml):
+	res = []
+	users = usershtml.select("table.sticky-enabled tbody tr")
+	for tr in users:
+		try:
+			user = tr.select(".profile-name")[0].get_text() + " " + tr.select(".profile-position")[0].get_text() + "\n"
+		except:
+			user = tr.select(".profile-name")[0].get_text() + "\n"
+		res.append(user.encode("utf-8"))
+
+	return re.sub(r',\s', '', ", ".join(res))
+
+def resolve_text(tags, tag_name, text_piece):
 	text = ''
 	for tag in tags:
 		if tag.name == tag_name and text_piece in tag.text:
-			text = tag.next_sibling.get_text()
+			# print "++++ ", re.sub(r'[\n\s]{2,}', '', tag.find_next_sibling().get_text())
+			text = re.sub(r'[\n\s]{2,}', '', tag.find_next_sibling().get_text())
 	return text
 
 def get_pages():
@@ -174,7 +195,7 @@ def parse_data(url, line_num):
 	print line_num, url
 	htmltext = r.text.encode("utf-8")
 	soup = BeautifulSoup(htmltext, 'html.parser')
-																								
+	resolve_users(soup.select('#block-gala-user-gala-user-company-block')[0])																					
 	try:
 		company = soup.select("h1.page-title")[0].get_text().encode("utf-8")
 	except:
@@ -184,7 +205,7 @@ def parse_data(url, line_num):
 	except:
 		profile_link = ''
 	try:
-		country = soup.select(".company-main-location")[0].get_text().split("<br>")[3].encode("utf-8")
+		country = soup.select(".company-main-location")[0].get_text().split("<br>")#[3].encode("utf-8")
 	except:
 		country = ''
 	try:
@@ -208,7 +229,7 @@ def parse_data(url, line_num):
 	except:
 		web = ''
 	try:
-		overview = resolve_text(soup.select("h5"), "h5", 'Organization Overview').encode("utf-8")
+		overview = resolve_text(soup.select("h5.mobile-organization-overview"), "h5", 'Organization Overview').encode("utf-8")
 	except:
 		overview = ''
 	try:
@@ -224,7 +245,7 @@ def parse_data(url, line_num):
 	except:
 		sector = ''
 	try:
-		s_lang =resolve_text(soup.select('h4'), "h4", "Source Languages").encode("utf-8")
+		s_lang = resolve_text(soup.select('h4'), "h4", "Source Languages").encode("utf-8")
 	except:
 		s_lang = ''
 	try:
@@ -236,14 +257,14 @@ def parse_data(url, line_num):
 	except:
 		o_type = ''
 	try:
-		media = soup.select('#block-views-company-feeds-block-3')[0].get_text().encode("utf-8")
+		media = resolve_media(soup.select("div[id^='block-views-company-feeds-block']"))
 	except:
 		media = ''
 	try:
-		users = soup.select('#block-gala-user-gala-user-company-block')[0].get_text().encode("utf-8")
+		users = resolve_users(soup.select('#block-gala-user-gala-user-company-block')[0])
 	except:
 		users = ''
-	write_data(company, profile_link, url, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users)
+	write_data(company, profile_link, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users)
 
 def contact_text(tag):
 	if tag.name == 'a' and 'ontact' in tag.text:
@@ -253,10 +274,11 @@ def contact_text(tag):
 	else:
 		return False
 
-def write_data(company, profile_link, url, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users):
-	with open('gala_details.csv', 'ab') as resfile:
+def write_data(company, profile_link, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users):
+	with open('gala_details.csv', 'wb') as resfile:
 		writer = csv.writer(resfile)
-		writer.writerow([company, profile_link, url, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users])
+		writer.writerow(["company", "profile_link", "country", "headquaters", "other_loc", "email", "tel", "web", "overview", "services", "other_products", "sector", "s_lang", "t_lang", "o_type", "media", "users"])
+		writer.writerow([company, profile_link, country, headquaters, other_loc, email, tel, web, overview, services, other_products, sector, s_lang, t_lang, o_type, media, users])
 
 def save_faield_links(link, index):
 	with open('6_failed_links.csv', 'ab') as resfile:
@@ -265,8 +287,8 @@ def save_faield_links(link, index):
 	resfile.close()
 
 def main():
-	#get_links()
-	#dedup()
+	# get_links()
+	# dedup()
 
 	with open("gala_links_dedup.csv", "rb") as f:
 		reader = csv.reader(f)
